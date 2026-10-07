@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icons/idle128.png" alt="Crawler Choice icon" width="96">
+<img src="idle128.png" alt="Crawler Choice icon" width="96">
 
 # Crawler Choice – Heritrix or Browsertrix
 
