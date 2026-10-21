@@ -24,8 +24,7 @@ by **Thomas Smedebøl**, Royal Danish Library
 
 Choosing a crawler for a web-archiving job is often guesswork: *"it looks modern, so it probably needs a browser crawl"*. **Crawler Choice** replaces the guess with measurements.
 
-For a handful of representative pages it compares:
-
+It does this on a small stratified sample of the site’s pages (7 by default, 5–20), and for each representative page it compares: 
 | | |
 |---|---|
 | 🕷️ **Heritrix side** | what **Heritrix 3.14.1** would discover in the raw HTML (a faithful port of its own link extraction) |
