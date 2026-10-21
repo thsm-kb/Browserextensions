@@ -69,11 +69,7 @@ After the download the model runs locally, and no data leaves the computer.
 
 The extension is not in the Chrome Web Store; it is loaded as an **unpacked** extension.
 
-1. **Get the code.** Clone the repository, or download the release zip and unzip it.
-   ```bash
-   git clone <repository-url>
-   ```
-   You need the folder that contains `manifest.json`, not the zip file itself.
+1. [Download](https://github.com/thsm-kb/Browserextensions/raw/refs/heads/main/CrawlerChoice/crawler-choice-extension-v1.10.0.zip) and unzip the extension to a folder of your choice. 
 2. **Open** `chrome://extensions` in the address bar.
 3. **Turn on Developer mode** with the switch in the top-right corner.
 4. Click **Load unpacked** and select the folder that contains `manifest.json`.
