@@ -1,464 +1,246 @@
+<div align="center">
+
 # Browsertrix Crawl Log Viewer
 
-**made by Thomas Smedebøl, Royal Danish Library**
+**Read a Browsertrix crawl log as answers, not as thousands of JSON lines.**
 
-Browsertrix Crawl Log Viewer is a Chrome/Chromium extension that turns Browsertrix crawl logs into a practical QA and diagnostics interface for web-archive work.
+[![Chrome desktop](https://img.shields.io/badge/Chrome-desktop-4285F4?logo=googlechrome&logoColor=white)](#-requirements)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-34A853)](#)
+[![Gemini Nano](https://img.shields.io/badge/Gemini%20Nano-optional%2C%20on--device-8E75B2?logo=googlegemini&logoColor=white)](#gemini-nano-optional)
+[![Browsertrix Crawler](https://img.shields.io/badge/Browsertrix-crawl%20logs-orange)](#-how-it-works)
+[![No dependencies](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)](#-development)
 
-Instead of reading Browsertrix newline-delimited JSON by hand, the extension intercepts **Download Logs**, opens the log locally, and provides sortable events, page/resource statistics, MIME grouping, domains, URL provenance, soft-404 detection, runtime diagnostics, blocking/throttling signals, and an optional on-device Gemini Nano summary.
+by **Thomas Smedebøl**, Royal Danish Library
 
-> Current version: **1.6.1**
+[Requirements](#-requirements) · [Install](#-install-in-developer-mode) · [Usage](#-usage) · [How it works](#-how-it-works) · [Safety](#-safety-and-privacy) · [Development](#-development)
 
-## Why this exists
-
-Browsertrix logs contain a great deal of useful crawl information, but important signals are spread across thousands of individual log events. This viewer is designed to help a curator or crawl engineer answer questions such as:
-
-- Did the crawl complete successfully?
-- Which pages and resources were captured?
-- What consumed most of the crawl data?
-- Which domains supplied the resources?
-- Are there signs of blocking, rate limiting or throttling?
-- Did Browsertrix hit a crawl limit?
-- Does the log show RAM, CPU or storage pressure?
-- Where did a resource or page URL originate?
-- Does the target appear to use soft 404 responses?
-- What are the few findings that deserve human attention?
-
-The raw log table remains the forensic source of truth. Derived findings distinguish deterministic facts from heuristics and inferred relationships.
-
-## Features
-
-### Crawl log viewer
-
-- Intercepts Browsertrix **Download Logs** on the configured Browsertrix Cloud host.
-- Can also open local `.log`, `.txt`, `.json` and NDJSON files.
-- Streams remote logs rather than waiting silently for the entire download.
-- Prominent loading state with spinner/progress indication.
-- Shows percentage and received/total bytes when a reliable `Content-Length` is available.
-- Falls back to an indeterminate progress bar plus received byte count when total size is unknown.
-- Keeps the original event `details` JSON available for inspection.
-
-### Sort, filter and inspect
-
-The main table exposes useful Browsertrix fields in a normalized form, including:
-
-- timestamp
-- level
-- context
-- message
-- HTTP status
-- worker
-- resource/file type
-- MIME group
-- size
-- domain/hostname
-- URL/resource
-- page
-- origin / discovered from
-- raw details
-
-Columns are sortable. Search and filters update the displayed rows and the statistics derived from the current selection.
-
-### Raw log view
-
-A **Raw log** tab shows the original log text as code:
-
-- line numbers identical to the table's source line, with a link from every expanded table row;
-- JSON syntax colouring, with `logLevel` values and messages emphasized;
-- plain-text or **regular-expression** search, optional case sensitivity, next/previous match navigation;
-- **Only matching lines** (grep-style) and **Wrap lines** toggles, plus Go to line;
-- gutter marks for warn, error/fatal and malformed (non-JSON) lines.
-
-Search runs in a Web Worker. A regular expression that makes no progress for 8 seconds (catastrophic backtracking) is stopped instead of freezing the viewer. Rendering is block-virtualized, so logs with hundreds of thousands of lines stay responsive.
-
-### Pages and resources
-
-**Pages** are a first-class filter option rather than being treated as extensionless resources.
-
-Resource statistics are URL-deduplicated and can include:
-
-- unique resources
-- resources with a known size
-- combined known size
-- average size
-- median size
-- largest resource
-
-The viewer does not equate the number of log rows with the number of unique resources.
-
-### URL-aware file type detection
-
-File type detection is deliberately conservative:
-
-1. Prefer MIME/resource metadata logged by Browsertrix.
-2. Otherwise parse the URL with `new URL()`.
-3. Inspect only the final filename component of the URL **pathname**.
-4. Use only recognized extensions.
-5. Unknown suffixes remain unknown.
-
-Hostnames and top-level domains are never treated as file extensions. For example, `.dk`, `.com` and `.org` cannot become file types simply because they occur at the end of a hostname.
-
-### Domain column
-
-Each relevant row exposes the actual resource hostname, for example:
-
-- `www.example.dk`
-- `cdn.example.dk`
-- `media.example.net`
-
-Subdomains are intentionally preserved because CDN and third-party hosts are often important during crawl QA.
-
-## MIME grouping
-
-Browsertrix may expose MIME/content-type information directly. When it does, the viewer uses that information before extension inference.
-
-MIME names and top-level media types are based on the **IANA Media Types registry**:
-
-- https://www.iana.org/assignments/media-types/media-types.xhtml
-- https://www.iana.org/assignments/top-level-media-types/top-level-media-types.xhtml
-
-IANA defines registered MIME types; it does not define archival QA groupings such as “Office / documents”. The viewer therefore adds a transparent functional grouping layer intended for crawl analysis.
-
-Current groups include:
-
-| Group | Examples |
-|---|---|
-| Web pages | HTML/XHTML page material |
-| Images | JPEG, PNG, GIF, WebP, SVG, AVIF, etc. |
-| Office / documents | PDF, Word, Excel, PowerPoint, OpenDocument, RTF, etc. |
-| Audio files | ordinary audio resources such as MP3, OGG, WAV, FLAC |
-| Video files | ordinary video resources such as MP4, WebM, MOV |
-| Streaming manifests / playlists | HLS, DASH and similar manifests/playlists |
-| Streaming audio | media identified specifically as streaming audio |
-| Streaming video | media identified specifically as streaming video |
-| Streaming media segments | transport/media segments such as TS/M4S where identifiable |
-| Archives / compressed | ZIP, TAR, GZIP, 7z, RAR and related formats |
-| Structured data | JSON, XML and related machine-readable data |
-| Scripts / web code | JavaScript and related code resources |
-| Stylesheets | CSS |
-| Fonts | WOFF/WOFF2/TTF/OTF and related types |
-| E-books | EPUB and related formats |
-| 3D / models | registered model media types and known formats |
-| Messages / multipart | message/* and multipart/* material |
-| Text | other text/* resources |
-| Application / other | known application/* resources not assigned to a more useful QA group |
-| Binary / unknown | generic binary content |
-| Unclassified | insufficient information |
-
-### Streaming classification is conservative
-
-The viewer does **not** classify every `audio/*` or `video/*` response as streaming.
-
-Streaming requires an actual streaming-specific signal such as an HLS/DASH playlist/manifest MIME type, a recognized segment MIME type, or a conservative URL-extension signal such as `.m3u8`, `.mpd`, `.m4s` or transport-stream segments.
-
-An ordinary MP3 or MP4 remains an audio/video file unless the available evidence says otherwise.
-
-## Soft-404 detection
-
-The viewer can probe a deliberately nonexistent path on the first-seed origin:
-
-```text
-<first-seed-origin>/browsertrixsoft404detect
-```
-
-If that path returns HTTP 200, the host may be using a soft-404 pattern.
-
-The viewer then looks for possible matching resources on the same host using normalized type and approximately equal size. The current tolerance is:
-
-- **±8%**, or
-- **±2 KB**,
-
-whichever is larger.
-
-Potential matches are labelled **SOFT404?**. They are suspects for review, not confirmed missing pages.
-
-The test requests runtime host permission only for the concrete target host.
-
-## URL provenance
-
-The viewer attempts to explain where a page or resource came from.
-
-Provenance confidence is explicit:
-
-- **EXACT** — Browsertrix logs `details.page` for a resource, or explicit source/referrer/parent metadata is present.
-- **INFERRED** — for a single-worker crawl, a queued page URL may be associated with the currently active page when timing makes that relationship defensible.
-- **INITIAL** — URLs queued before ordinary page processing begins, typically seeds/initial URLs.
-- **UNKNOWN** — no defensible origin is available.
-
-Timing-based inference is never presented as exact, and the viewer does not guess page parentage in multi-worker crawls without explicit metadata.
-
-## Crawl diagnostics
-
-The viewer calculates deterministic QA facts before any AI interpretation.
-
-### Blocking and throttling
-
-Signals include parsed HTTP statuses and explicit log evidence such as:
-
-- 401 / 403 / 407
-- 429 rate limiting
-- relevant 503 patterns
-- WAF/challenge/block messages
-- repeated navigation/fetch failures
-- explicit throttling/rate-limit messages
-
-A log message saying Browsertrix is **checking** for Cloudflare blocking is not itself treated as evidence of blocking.
-
-### Runtime and limits
-
-Where the log exposes the data, diagnostics can include:
-
-- RSS and heap memory values of the Browsertrix Crawler Node.js process (debug-level `memoryStatus`; browser memory is not logged)
-- peak/ending memory and suspicious memory growth
-- explicit CPU telemetry
-- explicit storage/quota/write/WARC-upload errors and disk-utilization stops
-- crawl limits and whether they were hit, matched against Browsertrix's own stop messages (size, time, failed-page and disk-utilization thresholds, page limit); per-page "retry limit reached" is not a crawl limit, and a logged page limit of 0 means none was configured
-- browser/worker crashes
-- OOM/target/session failures
-
-CPU pressure is not guessed from slowness, and an internal per-resource size threshold is not automatically described as a storage quota.
-
-## Gemini Nano report
-
-The viewer can optionally use Chrome's built-in **LanguageModel / Prompt API** when available.
-
-Design principle:
-
-> **JavaScript calculates; Gemini interprets.**
-
-The full raw crawl log is not passed to Gemini. The extension first builds a compact deterministic fact object containing relevant crawl metadata, response-status counts, warnings/errors, blocking signals, limits, memory/CPU/storage telemetry when present, resource/MIME/domain summaries, large resources and soft-404 findings.
-
-Gemini Nano then turns those facts into a short prioritized operational report.
-
-If the local model is unavailable or needs downloading, the viewer handles that state without preventing normal log analysis.
-
-## Privacy and security
-
-The extension is intentionally conservative with credentials and host access.
-
-### Browsertrix bearer token
-
-Browsertrix log downloads can contain an `auth_bearer` token in the signed URL.
-
-The extension:
-
-- validates the Browsertrix log endpoint in the background service worker;
-- stores the signed URL temporarily in `chrome.storage.session`;
-- opens the viewer with only a random UUID in the URL hash;
-- removes the signed URL from session storage as soon as the log has downloaded (it is kept until then, so a failed download can be retried by reloading the viewer tab; abandoned entries are pruned after one hour);
-- fetches the log without browser cookies, since Browsertrix authenticates the download with the token in the URL;
-- does not place the bearer URL in browser history, bookmarks or persistent extension storage.
-
-### Host permissions
-
-The configured Browsertrix Cloud host is a normal host permission.
-
-`*://*/*` is declared as an **optional** host permission because a soft-404 probe may need to target any first-seed host. This declaration does not grant access to all sites automatically. Chrome requests access to the actual target origin at runtime.
-
-### AI
-
-The Gemini Nano feature uses Chrome's on-device model when supported. It is not implemented as a cloud AI API call.
-
-## Installation
-
-This project currently ships as an unpacked Chrome/Chromium extension rather than a Chrome Web Store package.
-
-1. Download or clone the repository.
-2. Open `chrome://extensions`.
-3. Enable **Developer mode**.
-4. Click **Load unpacked**.
-5. Select the `browsertrix-log-viewer` directory containing `manifest.json`.
-6. Open Browsertrix Cloud and click **Download Logs** for a crawl.
-
-When upgrading an existing development installation:
-
-1. Replace the extension files.
-2. Open `chrome://extensions`.
-3. Press **Reload** for Browsertrix Crawl Log Viewer.
-4. Open a fresh Browsertrix log.
-
-Reloading is particularly important after manifest permission changes.
-
-## Using a local log
-
-Open the extension directly from its toolbar action or viewer page and choose a local Browsertrix log file.
-
-Expected primary format is Browsertrix NDJSON: one JSON object per line, typically containing fields such as:
-
-```json
-{
-  "timestamp": "...",
-  "logLevel": "debug",
-  "context": "recorder",
-  "message": "...",
-  "details": {
-    "url": "https://example.org/resource",
-    "page": "https://example.org/page",
-    "status": 200
-  }
-}
-```
-
-## Guide page
-
-The extension includes an in-product **Guide** page covering:
-
-- how interception works;
-- table/filter/statistics behavior;
-- MIME grouping;
-- provenance confidence;
-- soft-404 interpretation;
-- runtime diagnostics;
-- Gemini Nano;
-- permissions/privacy;
-- known limitations.
-
-The extension's Chrome options page also opens this guide.
-
-## Project structure
-
-```text
-browsertrix-log-viewer/
-├── manifest.json
-├── background.js
-├── content.js
-├── viewer.html
-├── viewer.css
-├── viewer.js
-├── mime-groups.js
-├── raw-view.js
-├── raw-search-core.js
-├── raw-search-worker.js
-├── guide.html
-├── guide.css
-├── guide.js
-├── README.md
-├── README.txt
-├── Instructions_for_agents.txt
-└── examples/
-    ├── README.txt
-    ├── example-browsertrix-crawl.log
-    └── reference-crawler-choice-bbc.json
-```
-
-### Main components
-
-**`content.js`**  
-Detects Browsertrix Download Logs actions, including Shoelace/open-shadow-DOM event paths, and hands valid log endpoints to the background worker.
-
-**`background.js`**  
-Validates endpoints, protects the signed log URL using session storage and opens the viewer.
-
-**`viewer.js`**  
-Streams/parses Browsertrix NDJSON, derives normalized rows and statistics, renders filters/table/details, performs provenance/diagnostics/soft-404 checks and coordinates Gemini Nano analysis.
-
-**`mime-groups.js`**  
-Central MIME extraction, recognized extension fallback, resource type normalization and functional MIME grouping.
-
-**`raw-view.js`**  
-Raw log tab: block-virtualized code view, JSON syntax colouring, search UI, wrap / only-matching / go-to-line, gutter markers.
-
-**`raw-search-core.js` / `raw-search-worker.js`**  
-Shared pattern compiler and incremental search; the worker runs full-log searches off the main thread and is terminated if a regex stalls.
-
-**`guide.*`**  
-Self-contained extension documentation with no external script dependency.
-
-**`Instructions_for_agents.txt`**  
-Technical handoff for another developer or AI agent. It documents design decisions, architecture, security constraints, heuristics, version history and regression requirements.
-
-## Development and validation
-
-At minimum, run these checks before packaging a release:
-
-```bash
-node --check background.js
-node --check content.js
-node --check viewer.js
-node --check mime-groups.js
-node --check raw-view.js
-node --check raw-search-core.js
-node --check raw-search-worker.js
-node --check guide.js
-python -m json.tool manifest.json > /dev/null
-```
-
-Also test with a real Browsertrix NDJSON log and verify:
-
-- Pages appear in the file-type filter.
-- `.dk`, `.com`, `.org`, etc. are never file types.
-- MIME groups populate and filter statistics correctly.
-- MIME group and Domain columns sort correctly.
-- ordinary MP3/MP4 are not automatically classified as streaming.
-- HLS/DASH/segment resources are recognized conservatively.
-- `details.page` provenance is **EXACT**.
-- single-worker queue inference remains **INFERRED**.
-- multi-worker parentage is not guessed.
-- soft-404 host permission is requested at runtime.
-- local file loading works.
-- Raw log tab: line numbers match table source lines, regex search, wrap and only-matching toggles, catastrophic regex is stopped.
-- guide page shows the manifest version and required byline.
-- Gemini unavailable/downloading states fail gracefully.
-- bearer-token URLs never leak into the viewer URL or persistent storage.
-
-## Example/reference files
-
-The package contains two development references:
-
-- `examples/example-browsertrix-crawl.log` — Browsertrix NDJSON suitable for viewer regression testing.
-- `examples/reference-crawler-choice-bbc.json` — a separate BBC site-analysis/reference JSON used for broader URL/media-pattern testing. It is **not** a Browsertrix crawl-log fixture.
-
-## Known limitations
-
-- Browsertrix does not always log the parent/referrer for queued page URLs.
-- Resource sizes are based on the best reliable size information present in the log; not every event contains a size.
-- Soft-404 matching is heuristic and deliberately labelled as suspected.
-- MIME grouping is conservative; uncommon vendor-specific `application/*` types may remain `Application / other` until explicitly categorized.
-- CPU/storage capacity cannot be reported when the log does not expose it.
-- Browsertrix logs a page's HTTP status only for failed or rate-limited pages, so blocking diagnostics cannot see pages that loaded with 4xx/5xx. Per-page statuses are in `pages/pages.jsonl` in the WACZ.
-- "Page Load Blocked, skipping" carries no page URL in Browsertrix logs, so such pages cannot be counted as skipped.
-- Gemini Nano availability depends on the user's Chrome/Chromium environment and local built-in AI support.
-
-## Design principles
-
-The project intentionally follows a few rules:
-
-- Do not expose Browsertrix bearer tokens.
-- Do not turn arbitrary URL suffixes or TLDs into file types.
-- Do not call every audio/video resource “streaming”.
-- Do not count log events as unique resources.
-- Do not call soft-404 candidates confirmed soft 404s.
-- Do not present inferred provenance as exact.
-- Do not claim blocking just because Browsertrix ran a blocking check.
-- Do not let an LLM calculate authoritative counts that deterministic JavaScript can calculate.
-
-## Version history
-
-| Version | Main changes |
-|---|---|
-| 1.0.0 | Initial intercepted Browsertrix log viewer |
-| 1.1.0 | Resource type and size support |
-| 1.2.0 | Soft-404 probe, dynamic totals, first-seed metadata |
-| 1.3.0 | URL provenance / origin tracing |
-| 1.3.1 | Runtime host-permission fix |
-| 1.4.0 | Loading progress, Pages, URL-safe type detection, Domain, diagnostics, Gemini Nano |
-| 1.5.0 | Guide page, agent handoff file, MIME grouping/filter |
-| 1.5.1 | GitHub-ready `README.md` included in the package |
-| 1.6.0 | Raw log view: code display, plain/regex search in a Web Worker, wrap and only-matching toggles, go to line, table-to-raw links |
-| 1.6.1 | Review fixes: large debug logs no longer fail to load; accurate crawl-limit, page-outcome and disk-utilization detection; TypeScript `.ts` no longer "streaming"; blocking/RSS caveats; Gemini prompt fixes; lower memory; no cookies sent; `tabs` permission removed |
-
-## Contributing / continuing development
-
-Before making significant changes, read `Instructions_for_agents.txt`. It contains the rationale behind decisions that may otherwise look arbitrary, particularly around security, provenance confidence, soft-404 classification, MIME/streaming grouping and AI analysis.
-
-When adding a new heuristic, prefer this pattern:
-
-1. extract deterministic facts;
-2. label uncertainty explicitly;
-3. keep the raw evidence inspectable;
-4. avoid turning absence of telemetry into a negative finding;
-5. add a regression test/example where practical.
+</div>
 
 ---
 
-**Browsertrix Crawl Log Viewer**  
-made by Thomas Smedebøl, Royal Danish Library
+## ✨ What it does
+
+A Browsertrix crawl log is newline-delimited JSON: one event per line, often hundreds of thousands of them. The answers a curator or crawl engineer needs are spread across those lines. **Browsertrix Crawl Log Viewer** catches **Download Logs** in Browsertrix and opens the log in a viewer built for crawl QA:
+
+| | |
+|---|---|
+| 📊 **Table** | every event, sortable and filterable, with status, type, MIME group, size, domain, page and where each URL came from; columns can be dragged into any order |
+| 📜 **Raw log** | the original log as code, with line numbers, syntax colouring and plain-text or regular-expression search |
+| 🩺 **Diagnostics** | crawl outcome, limits, blocking and throttling signals, memory, storage problems, timeouts and soft-404 suspects |
+| 🤖 **Gemini Nano** | an optional short report from Chrome's on-device model, built from the diagnostics, not from the raw log |
+
+> [!NOTE]
+> The table and the raw log stay the source of truth. Every derived finding says whether it is a logged fact, a heuristic or an inference, and inferred relationships are never shown as exact.
+
+---
+
+## 📋 Requirements
+
+> [!IMPORTANT]
+> Browsertrix Crawl Log Viewer runs in **desktop Google Chrome**. It intercepts **Download Logs** on **`btrix-cloud-prod.kb.dk`** only. A log from any other Browsertrix installation can still be opened as a local file.
+
+| Browser | Supported |
+|---|:---:|
+| Google Chrome on Windows, macOS or Linux | ✅ |
+| Chrome on Android or iOS | ❌ *no extension support* |
+| Other Chromium browsers (Edge, Brave, Opera, Vivaldi …) | ❌ *not supported, not tested* |
+
+### Gemini Nano (optional)
+
+The viewer can ask Chrome's on-device model for a **short report**. It runs only when you press the button, and every other feature works without it. It needs **Chrome 138 or later**, where the Prompt API is available to extensions, and the computer must meet [Chrome's requirements for built-in AI](https://developer.chrome.com/docs/ai/get-started):
+
+| | Requirement |
+|---|---|
+| 💻 Operating system | Windows 10/11, macOS 13 (Ventura)+, Linux, or ChromeOS on Chromebook Plus |
+| 💾 Storage | at least **22 GB free** on the volume holding the Chrome profile |
+| ⚙️ Hardware | GPU with **more than 4 GB VRAM**, *or* **16 GB RAM** and **4+ CPU cores** |
+| 📶 Network | unmetered connection for the one-time model download |
+
+After the download the model runs locally, and no data leaves the computer.
+
+---
+
+## 🚀 Install in developer mode
+
+The extension is not in the Chrome Web Store; it is loaded as an **unpacked** extension.
+
+1. [Download](https://github.com/thsm-kb/Browserextensions/raw/refs/heads/main/Browsertrix%20Crawl%20Log%20Viewer/Browsertrix%20Crawl%20Log%20Viewer%20v1.8.0.zip) and unzip the extension to a folder of your choice.
+2. **Open** `chrome://extensions` in the address bar.
+3. **Turn on Developer mode** with the switch in the top-right corner.
+4. Click **Load unpacked** and select the folder that contains `manifest.json` (the folder is called **Browsertrix Crawl Log Viewer**).
+5. **Pin it.** Click the 🧩 puzzle-piece icon in the toolbar and pin **Browsertrix Crawl Log Viewer**.
+6. *(Optional)* In the viewer, press **Analyze with Gemini Nano**. If the model isn't downloaded yet, the button reads **Download model & analyze** and the viewer shows the download progress.
+
+<details>
+<summary><b>Updating to a new version</b></summary>
+
+Replace the folder's contents with the new version and click the **↻ reload** arrow on the extension's card in `chrome://extensions`. Your column order and raw-log search options are kept.
+
+</details>
+
+<details>
+<summary><b>Updating from version 1.7 or older</b></summary>
+
+Older versions were unzipped to a folder called `browsertrix-log-viewer`. Chrome identifies an unpacked extension by its folder, so loading the new **Browsertrix Crawl Log Viewer** folder *next to* the old one installs a second copy, and both would open a viewer when you click **Download Logs**. Do one of the following:
+
+- **Remove** the old card in `chrome://extensions`, then load the new folder (your column order is reset once), or
+- **copy** the contents of the new folder into your existing `browsertrix-log-viewer` folder and click **↻ reload** (everything is kept).
+
+</details>
+
+<details>
+<summary><b>Managed (company / institution) computers</b></summary>
+
+If your organisation's Chrome policies block developer mode or unpacked extensions, the extension can't be installed. Ask your IT department.
+
+</details>
+
+---
+
+## 🧭 Usage
+
+1. Open a finished crawl in Browsertrix on `btrix-cloud-prod.kb.dk` and click **Download Logs**.
+2. Instead of a file download, the viewer opens in a new tab and shows the download progress.
+3. Read the diagnostics at the top, then use the **Table** and **Raw log** tabs to dig in.
+
+To open a log you already have, click the **Browsertrix Crawl Log Viewer** icon and choose **Open local log**. Browsertrix NDJSON logs (`.log`, `.ndjson`, `.txt`, `.json`) are accepted.
+
+> [!TIP]
+> The **Guide** button in the viewer explains every column, filter and finding, with the caveats that matter when interpreting them.
+
+### What you get
+
+**The table.** One row per log event. Sort by any column; drag a column header left or right to move it (Alt+←/→ with the keyboard). Columns can only be moved, never hidden. Filter by text, level, context, file type and MIME group, and the totals follow the filter: unique pages, unique resources, combined, average, median and largest size. The **fields** button at the end of each message shows the event's full `details` JSON and a link to the line in the raw log.
+
+**The raw log.** The log exactly as Browsertrix wrote it, as code. Line numbers match the table's source line. Gutter marks show warnings, errors and lines that aren't valid JSON.
+
+| Raw-log control | What it does |
+|---|---|
+| 🔎 Search | plain text by default; **.\*** for a regular expression, **Aa** to match case; Enter and Shift+Enter move between matches |
+| ≡ Only matching lines | shows only lines with a match, like `grep` |
+| ↩ Wrap lines | wraps long lines instead of scrolling sideways |
+| # Go to line | jumps to a line number |
+
+**The diagnostics**, calculated by the viewer itself:
+
+| Finding | Based on |
+|---|---|
+| 🏁 Crawl outcome | pages completed, failed, skipped or not confirmed complete |
+| 🛑 Limits | Browsertrix's own stop messages: size, time, failed-page and disk-utilization thresholds, page limit |
+| 🚧 Blocking / throttling | 401/403/407/429/503 statuses, WAF and challenge messages, rate-limit messages |
+| 🧠 Memory | RSS and heap of the crawler process, when the crawl was logged at debug level |
+| 💾 Storage | write, quota and WARC-upload errors and disk-utilization stops |
+| 👻 Soft 404 | whether the first seed's host answers 200 for a page that doesn't exist, and which resources look like that answer |
+| 🧭 Provenance | where each page or resource URL was discovered, labelled EXACT, INFERRED, INITIAL or UNKNOWN |
+
+---
+
+## 🔬 How it works
+
+```mermaid
+flowchart LR
+    A[Download Logs<br/>in Browsertrix] --> B[Signed URL kept in<br/>session memory]
+    B --> C[Streamed download<br/>with progress]
+    C --> D[Parse NDJSON<br/>one event per line]
+    D --> E[Table · Raw log]
+    D --> F[Deterministic<br/>diagnostics]
+    F --> G[Optional<br/>Gemini Nano report]
+```
+
+1. **Interception.** A content script on `btrix-cloud-prod.kb.dk` catches the **Download Logs** click. The service worker checks that the link is a real Browsertrix log endpoint and keeps the signed link in Chrome's session memory under a random key; only that key goes into the viewer's address.
+2. **Download.** The viewer streams the log and shows percentage and bytes, or received bytes when the size is unknown. The signed link is deleted as soon as the download succeeds.
+3. **Parsing.** Each line is one event. Status, size, domain, page, file type and MIME group are taken from what Browsertrix logged; a file type is inferred from a URL only for recognized extensions, never from a hostname such as `.dk`.
+4. **Diagnostics.** Findings are matched against Browsertrix Crawler's actual messages and stay conservative: a Cloudflare *check* is not a block, and a page giving up after retries is not a crawl limit.
+5. **Gemini Nano.** The model receives only the compact fact summary from step 4, never the raw log, and writes a short prioritised report. *JavaScript calculates; Gemini interprets.*
+
+<details>
+<summary><b>MIME groups</b></summary>
+
+MIME names and top-level types follow the [IANA Media Types registry](https://www.iana.org/assignments/media-types/media-types.xhtml). IANA does not define QA groupings such as *Office / documents*, so the viewer adds a documented functional layer on top.
+
+| Group | Examples |
+|---|---|
+| Web pages | HTML/XHTML |
+| Images | JPEG, PNG, GIF, WebP, SVG, AVIF … |
+| Office / documents | PDF, Word, Excel, PowerPoint, OpenDocument, RTF … |
+| Audio files / Video files | ordinary MP3, OGG, WAV, FLAC / MP4, WebM, MOV |
+| Streaming manifests / playlists | HLS, DASH |
+| Streaming audio / video / media segments | media with a streaming-specific signal, TS/M4S segments |
+| Archives / compressed | ZIP, TAR, GZIP, 7z, RAR … |
+| Structured data | JSON, XML … |
+| Scripts / web code · Stylesheets · Fonts | JavaScript, TypeScript · CSS · WOFF/WOFF2/TTF/OTF |
+| E-books · 3D / models · Messages / multipart | EPUB · model/\* · message/\*, multipart/\* |
+| Text · Application / other · Binary / unknown | other text/\* · unassigned application/\* · generic binary |
+
+Streaming is conservative: an ordinary MP3 or MP4 is an audio or video file, not streaming, unless a streaming manifest, segment MIME type or segment URL says otherwise.
+
+</details>
+
+<details>
+<summary><b>Soft-404 test</b></summary>
+
+The viewer requests `<first-seed origin>/browsertrixsoft404detect`, a path that should not exist. If it answers **200**, the host may serve soft 404s. Resources on the same host with the same type and about the same size (±8 % or ±2 KB, whichever is larger) are marked **SOFT404?**. They are suspects for review, not confirmed missing pages. Chrome asks for permission to that one host before the test runs.
+
+</details>
+
+---
+
+## 🔒 Safety and privacy
+
+- **The download token stays out of sight.** Browsertrix puts an `auth_bearer` token in the log link. It is kept only in Chrome's session memory, never in the viewer's address, history, bookmarks or persistent storage, and is deleted as soon as the log has downloaded. Abandoned entries are removed after an hour.
+- **No cookies.** The log is fetched with the token only, without your browser cookies.
+- **Narrow permissions.** The extension has access to `btrix-cloud-prod.kb.dk` only. Access to other sites is *optional* and requested one host at a time, only for the soft-404 test.
+- **On-device AI only.** Gemini Nano runs locally. It receives a short fact summary, never the raw log.
+- **No data leaves your computer** other than the log download from Browsertrix and the optional soft-404 request to the crawled site.
+
+---
+
+## ⚠️ Limitations
+
+- **HTTP status only for failed pages.** Browsertrix logs a page's status only when the page fails or is rate-limited. A page that loaded with 403 or 404 looks like a success, so *no blocking signal* is not proof that nothing was blocked. Per-page statuses are in `pages/pages.jsonl` inside the WACZ.
+- **Memory needs debug logging.** RAM figures exist only if the crawl ran with `--logging debug`, and they cover the crawler process, not the browser. CPU and disk capacity are reported only when logged.
+- **Not every parent is known.** Browsertrix doesn't always log where a queued URL came from. Timing-based guesses are labelled INFERRED and are not made for multi-worker crawls. *Page Load Blocked* events carry no page URL, so those pages can't be counted as skipped.
+- **Heuristics are labelled.** Soft-404 matches are suspects, and uncommon vendor MIME types may stay *Application / other*.
+
+---
+
+## 🛠 Development
+
+No runtime dependencies and no build step: the folder you load **is** the source.
+
+```bash
+for f in *.js; do node --check "$f"; done
+python -m json.tool manifest.json > /dev/null
+```
+
+Then test with a real Browsertrix log; the full checklist is in `Instructions_for_agents.txt`. `examples/example-browsertrix-crawl.log` is a real crawl log for regression testing.
+
+<details>
+<summary><b>Project layout</b></summary>
+
+```text
+manifest.json                MV3 manifest
+background.js                service worker: validates log links, session storage, opens the viewer
+content.js                   catches Download Logs on btrix-cloud-prod.kb.dk
+viewer.html/.css/.js         the viewer: parsing, table, filters, diagnostics, soft-404, Gemini Nano
+mime-groups.js               MIME extraction, extension fallback, type labels and MIME groups
+raw-view.js                  the Raw log tab: virtualized code view and search UI
+raw-search-core.js           pattern compiler and incremental search (shared)
+raw-search-worker.js         Web Worker that runs full-log searches
+guide.html/.css/.js          the user guide (opened from the viewer)
+Instructions_for_agents.txt  design decisions and regression rules for developers and AI agents
+examples/                    example crawl log and a reference fixture
+```
+
+</details>
+
+Before larger changes, read `Instructions_for_agents.txt`: it explains decisions that may otherwise look arbitrary, particularly around tokens, provenance, soft 404s, MIME grouping and AI analysis.
+
+📜 See [CHANGELOG.md](CHANGELOG.md) for the version history.
+
+---
+
+## 🙏 Acknowledgements
+
+- **[Browsertrix](https://github.com/webrecorder/browsertrix)** and **[Browsertrix Crawler](https://github.com/webrecorder/browsertrix-crawler)** (Webrecorder). The diagnostics are matched against the crawler's own log messages; no Browsertrix code is included.
+- **[IANA Media Types registry](https://www.iana.org/assignments/media-types/media-types.xhtml)**, the basis for MIME names and top-level types.
