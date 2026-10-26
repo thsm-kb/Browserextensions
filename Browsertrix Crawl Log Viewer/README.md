@@ -67,7 +67,7 @@ After the download the model runs locally, and no data leaves the computer.
 
 The extension is not in the Chrome Web Store; it is loaded as an **unpacked** extension.
 
-1. [Download](https://github.com/thsm-kb/Browserextensions/raw/refs/heads/main/Browsertrix%20Crawl%20Log%20Viewer/Browsertrix%20Crawl%20Log%20Viewer%20v1.13.0.zip) and unzip the extension to a folder of your choice.
+1. [Download](https://github.com/thsm-kb/Browserextensions/raw/refs/heads/main/Browsertrix%20Crawl%20Log%20Viewer/Browsertrix%20Crawl%20Log%20Viewer%20v1.16.0.zip) and unzip the extension to a folder of your choice.
 2. **Open** `chrome://extensions` in the address bar.
 3. **Turn on Developer mode** with the switch in the top-right corner.
 4. Click **Load unpacked** and select the folder that contains `manifest.json` (the folder is called **Browsertrix Crawl Log Viewer**).
@@ -133,9 +133,38 @@ To open a log you already have, click the **Browsertrix Crawl Log Viewer** icon 
 > [!TIP]
 > The **Guide** button in the viewer explains every column, filter and finding, with the caveats that matter when interpreting them.
 
+### Normal and large logs
+
+The viewer picks a mode by size and shows it next to the file name:
+
+| | Normal mode | **Large-log mode** |
+|---|---|---|
+| Used for | logs up to 500 MB | logs above 500 MB |
+| Raw text | in memory | **stays on disk**: a local file is read directly; a log downloaded from Browsertrix is written, while it downloads, to the extension’s private disk storage (only this extension can read it) and deleted when the tab closes |
+| Rows | full detail in memory | **compact**: shared text, numbers, and only the few fields the analyses need; a line’s full details are read from disk when you open it |
+| Memory | about 3–4 × the log size | about **180 bytes per log line** (a 1.7 GB log: roughly 1.2 GB instead of 5–7 GB) |
+
+Everything works in both modes: table, filters, sorting, totals, diagnostics, status overview, provenance, the raw log and regex search. In large-log mode, searching streams the file from disk and opening details reads that line from disk, so they take a moment longer. In testing, both modes gave identical results.
+
+### While a crawl log loads
+
+Loading a large log takes a while, so the viewer shows **friendly cards in the middle of the screen while the crawl log loads**: more than 120 short tips for crawl engineers and curators (robots.txt, sitemaps, HTTP, scope, Heritrix, Browsertrix, behaviors, CSS selectors, WARC/WACZ, QA and web technology) plus good-to-know facts about this viewer.
+
+- Cards appear only when loading takes more than about 1.5 seconds. Click **Next** (or press →) for another card, **×** (or Esc) to close them for this load.
+- When the log is ready the card closes by itself, unless you are reading it; then it offers **Show my log**.
+- **Optional news** (off by default): turn on **Include web-archiving news** in Settings to mix in fresh items from web-archiving sources: new releases of Heritrix, Browsertrix, Browsertrix Crawler, NetarchiveSuite, pywb, ReplayWeb.page and SolrWayback; the Webrecorder, IIPC, Internet Archive and Library of Congress blogs; and ArchiveTeam Deathwatch shutdown warnings. Only items **published within the last 30 days** are shown, at most 10 per source, each with a link to the original. Gemini Nano writes the short card texts on your computer when it is available.
+- Turn the cards off in **Settings → While a crawl log loads**, or with *Don’t show cards while loading* on any card.
+
+> [!NOTE]
+> News feeds are fetched at most once a day and never while a log is loading. Turning news on asks Chrome for access to those news sites; turning it off deletes the cached news and gives the access back. Fetching a feed tells that site your IP address, as visiting it would; no crawl log data is ever sent.
+
 ### What you get
 
 **The table.** One row per log event. Sort by any column; drag a column header left or right to move it (Alt+←/→ with the keyboard). Columns can only be moved, never hidden. Filter by text, level, context, file type and MIME group, and the totals follow the filter: unique pages, unique resources, combined, average, median and largest size. The **fields** button at the end of each message shows the event's full `details` JSON and a link to the line in the raw log.
+
+**HTTP status.** A status dropdown filters by status group (1xx–5xx), by *Suspected blocking / throttling / rate limiting*, by *No status logged*, or by a single code such as *403 · Forbidden*. The **HTTP status overview** in the diagnostics shows, for the whole log, how many different URLs got each kind of status: bars show the tendency (hover for the exact count; small groups always stay visible), and clicking a bar filters the table. *Suspected blocking* uses exactly the same rules as the blocking diagnostics: 401, 403, 407, 429 or 503, and challenge or rate-limit messages.
+
+**Resource totals.** Under a MIME group or file type, the totals line shows unique resources and how many log lines they come from. A file linked directly from a page (a video, PDF or image) is fetched by Browsertrix as a "page"; the viewer counts it both as a page and as a resource of its own type, so it is no longer missing from, for example, *Video files*. Browsertrix logs no size for such directly fetched files.
 
 **The raw log.** The log exactly as Browsertrix wrote it, as code. Line numbers match the table's source line. Gutter marks show warnings, errors and lines that aren't valid JSON.
 
@@ -216,12 +245,14 @@ The viewer requests `<first-seed origin>/browsertrixsoft404detect`, a path that 
 ## 🔒 Safety and privacy
 
 - **The download token never leaves the extension.** Browsertrix puts an `auth_bearer` login token in the log link. The extension passes the link from the Browsertrix page to the viewer through Chrome's in-memory session storage, which only the extension's own pages can read. The viewer deletes it there the instant it picks it up, and an entry nobody picks up is deleted after 2 minutes. After that the link exists only in the viewer tab's memory until the log has downloaded. It is never written to disk, the viewer's address, history, bookmarks, the page, the console, exports or the Gemini prompt.
+- **Large logs: content on disk, never the token.** A log downloaded from Browsertrix is copied, while it downloads, into the extension’s private disk storage, which no website or other extension can read, so the viewer can switch to large-log mode if it passes 500 MB. The copy holds log content only (never the signed link or its token). For a normal-size log it is deleted as soon as the log has loaded; in large-log mode when the tab closes or another log is opened; any left-over copy is deleted after a day.
 - **A careful download.** The log is fetched without cookies, without telling Browsertrix which page asked (no Referer), without Chrome's disk cache, and without following redirects, so the link can't be bounced anywhere else.
 - **Nothing downloads behind your back.** If the viewer can't be opened, the extension shows a short notice and downloads nothing. It does not fall back to a normal download, which would store the link with its token in Chrome's download history.
 - **Error messages never show the link.** Every message the extension shows or logs is scrubbed of tokens first.
 - **No site access by default.** The extension is installed without access to any website. It gets access only to sites you approve in Chrome's prompt: each Browsertrix address you add in Settings, and the crawled site for the optional soft-404 test. Removing an address also removes that access.
 - **No built-in addresses.** The extension contains no Browsertrix address. Yours are stored only in your Chrome profile and are never sent anywhere.
 - **Only links from your Browsertrix.** A log link is opened only if it comes from the same connected address as the page it was clicked on, and only `https://` addresses are accepted (plain `http://` only for `localhost`).
+- **News is opt-in.** Web-archiving news on the loading cards is off by default. When on, feed content is treated as untrusted text: it is never rendered as HTML, only http(s) links are kept, and Gemini Nano is told never to follow instructions inside it.
 - **On-device AI only.** Gemini Nano runs locally. It receives a short fact summary, never the raw log or the link.
 
 > [!NOTE]
@@ -232,10 +263,10 @@ The viewer requests `<first-seed origin>/browsertrixsoft404detect`, a path that 
 
 ## ⚠️ Limitations
 
-- **HTTP status only for failed pages.** Browsertrix logs a page's status only when the page fails or is rate-limited. A page that loaded with 403 or 404 looks like a success, so *no blocking signal* is not proof that nothing was blocked. Per-page statuses are in `pages/pages.jsonl` inside the WACZ.
+- **Status codes depend on the log level.** At normal log level Browsertrix logs a page's status only when the page fails or is rate-limited, so a page that loaded with 403 or 404 looks like a success and *no blocking signal* is not proof that nothing was blocked. With `--logging debug`, every page's status (and most resources') is logged. Per-page statuses are also in `pages/pages.jsonl` inside the WACZ.
 - **Memory needs debug logging.** RAM figures exist only if the crawl ran with `--logging debug`, and they cover the crawler process, not the browser. CPU and disk capacity are reported only when logged.
 - **Not every parent is known.** Browsertrix doesn't always log where a queued URL came from. Timing-based guesses are labelled INFERRED and are not made for multi-worker crawls. *Page Load Blocked* events carry no page URL, so those pages can't be counted as skipped.
-- **Very large logs need memory.** There is no fixed size limit, but the viewer keeps every event in memory: plan for roughly 3–4 times the log size. In testing, a 607 MB log loaded in about 23 seconds; your time depends on your computer.
+- **Huge logs need some memory and disk.** Logs above 500 MB load in large-log mode, which needs roughly 180 bytes of memory per log line (about 1.2 GB for a 1.7 GB log of 6.5 million lines) and, for logs downloaded from Browsertrix, free disk space for a temporary copy. Searching and sorting millions of rows take a few seconds.
 - **Heuristics are labelled.** Soft-404 matches are suspects, and uncommon vendor MIME types may stay *Application / other*.
 
 ---
@@ -254,6 +285,13 @@ Then test with a real Browsertrix log; the full checklist is in `Instructions_fo
 `example-browsertrix-crawl.log` is a real Browsertrix crawl log, **redacted** for publication: host names are reserved example domains (`example.org`, `example.net`, `media.example.org`) that never point to real sites, every URL path word is lorem ipsum (file extensions kept, the same original always gets the same replacement), and file names and browser IDs are neutral. Browsertrix's own messages, log levels, contexts, HTTP statuses, sizes, MIME types and timestamps are unchanged, so it exercises parsing, pages and resources, sizes, MIME groups, crawler-made items, memory telemetry, soft-404 comparison and provenance exactly like the original. Open it with **Open local log**.
 
 <details>
+<summary><b>Changing the news feeds or the time window</b></summary>
+
+Edit `news-config.js`: each source has an `id`, a `name`, an RSS/Atom `url` and a `kind` (`release`, `community` or `shutdown`); `MAX_AGE_DAYS` sets the window (30 days), `MAX_PER_SOURCE` the number of items per source (10), and `CARD_TITLE_MAX` / `CARD_TEXT_MAX` the card length. After adding a source on a new website, turn news off and on once in Settings so Chrome can ask for access to it. A source that fails is shown as unavailable in Settings and never blocks the others. Tip cards live in `loading-cards-data.js`.
+
+</details>
+
+<details>
 <summary><b>Project layout</b></summary>
 
 ```text
@@ -270,6 +308,12 @@ raw-search-worker.js         Web Worker that runs full-log searches
 guide.html/.css/.js          the user guide (opened from the viewer)
 Instructions_for_agents.txt  design decisions and regression rules for developers and AI agents
 line-store.js                holds a log as line-aligned chunks plus line offsets (never one huge string)
+disk-lines.js                large-log mode: raw text on disk (line offsets only) and the private disk copy
+loading-cards.js             the cards shown while a crawl log loads
+loading-cards-data.js        the tip cards (edit freely: title ≤ 60, text ≤ 240 characters)
+news-config.js               news sources, 30-day window and card limits (edit here to change feeds)
+news.js                      fetches, filters, summarises and caches news cards
+settings-loading.js          Settings: “While a crawl log loads”
 example-browsertrix-crawl.log  a redacted example crawl log for testing
 ```
 
